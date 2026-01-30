@@ -1,0 +1,55 @@
+# -----------------------------
+# Wails & Build Output
+# -----------------------------
+build/bin/
+frontend/dist/
+frontend/node_modules/
+
+# -----------------------------
+# Go (Golang)
+# -----------------------------
+# Binaries and object files
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Vendor folder (agar use kar rahe ho to)
+vendor/
+
+# -----------------------------
+# Project Specific (Logs & Data)
+# -----------------------------
+# Logs folder (Jo humne daily logs ke liye banaya)
+logs/
+history.json
+*.log
+
+# Test Excel Files (Inhe repo me nahi hona chahiye)
+*.xlsx
+*.xls
+
+# -----------------------------
+# Security & License
+# -----------------------------
+# License key file (Kabhi bhi commit nahi honi chahiye)
+license.key
+.env
+
+# -----------------------------
+# IDE & System Files
+# -----------------------------
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# JetBrains (GoLand)
+.idea/
+
+# Windows & Mac Garbage
+Thumbs.db
+.DS_Store
