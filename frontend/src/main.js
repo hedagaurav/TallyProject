@@ -3,7 +3,7 @@ import './app.css';
 
 import logo from './assets/images/logo-universal.png';
 import { Greet } from '../wailsjs/go/main/App';
-import {SelectExcelFile, UploadToTally} from '../wailsjs/go/main/App'
+import {SelectExcelFile, ImportPurchaseVoucher} from '../wailsjs/go/main/App'
 
 
 document.querySelector('#app').innerHTML = `
@@ -32,7 +32,7 @@ let selectedPath = ""; // Yahan file ka path store hoga
 
 // Setup the greet function
 // window.greet = function () {
-//     // Get name
+//     // Get name,
 //     let name = nameElement.value;
 
 //     // Check if the input is empty
@@ -88,7 +88,7 @@ window.startImport = function () {
     
     try {
         // Go function call: UploadToTally
-        UploadToTally(selectedPath).then((response) => {
+        ImportPurchaseVoucher(selectedPath).then((response) => {
             // Response jo Go se aayega (Success/Fail count)
             resultElement.innerText = response;
             resultElement.style.color = "blue";

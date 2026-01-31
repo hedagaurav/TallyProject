@@ -1,16 +1,21 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	constant "TallyProject/constants"
+	helper "TallyProject/helpers"
+	model "TallyProject/models"
+
+	"github.com/denisbrodbeck/machineid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/xuri/excelize/v2"
 )
@@ -20,15 +25,53 @@ type App struct {
 	ctx context.Context
 }
 
-// Log struct
-type LogEntry struct {
-	Timestamp  string   `json:"timestamp"` // Exact time (HH:MM:SS)
-	FileName   string   `json:"fileName"`
-	Status     string   `json:"status"` // "Success" or "Failed"
-	TotalRows  int      `json:"totalRows"`
-	SuccessCnt int      `json:"successCnt"`
-	FailedCnt  int      `json:"failedCnt"`
-	Errors     []string `json:"errors"` // Error details
+// 1. Machine ID lene ka function (Frontend ko dikhane ke liye)
+func (a *App) GetMachineID() string {
+	id, err := machineid.ProtectedID("TallyApp")
+	if err != nil {
+		return "UnknownID"
+	}
+	return id
+}
+
+// 2. License Check karne ka function (Startup par call hoga)
+func (a *App) CheckLicense() bool {
+	// A. Machine ID nikalo
+	id, err := machineid.ProtectedID("TallyApp")
+	if err != nil {
+		return false
+	}
+
+	// B. License file padho
+	keyData, err := os.ReadFile("license.key")
+	if err != nil {
+		return false // File nahi mili matlab license nahi hai
+	}
+	inputKey := strings.TrimSpace(string(keyData))
+
+	// C. Valid Key generate karke match karo
+	expectedKey := generateHash(id + constant.AppSecret)
+
+	return inputKey == expectedKey
+}
+
+// 3. License Activate karne ka function (Jab user key daalega)
+func (a *App) ActivateLicense(key string) string {
+	id, _ := machineid.ProtectedID("TallyApp")
+	expectedKey := generateHash(id + constant.AppSecret)
+
+	if key == expectedKey {
+		// Sahi key hai -> File save karo
+		os.WriteFile("license.key", []byte(key), 0644)
+		return "Success"
+	}
+	return "Invalid Key! Please contact Admin."
+}
+
+// Helper: Hash Generator (SHA256)
+func generateHash(text string) string {
+	hash := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(hash[:])
 }
 
 // NewApp creates a new App application struct
@@ -47,44 +90,169 @@ func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
 }
 
-// ---------------------------------------------------------
-// TALLY XML TEMPLATE (Ye Tally ka format hai)
-// ---------------------------------------------------------
-const voucherXMLTemplate = `
-<ENVELOPE>
-    <HEADER>
-        <TALLYREQUEST>Import Data</TALLYREQUEST>
-    </HEADER>
-    <BODY>
-        <IMPORTDATA>
-            <REQUESTDESC>
-                <REPORTNAME>Vouchers</REPORTNAME>
-            </REQUESTDESC>
-            <REQUESTDATA>
-                <TALLYMESSAGE xmlns:UDF="TallyUDF">
-                    <VOUCHER VCHTYPE="Payment" ACTION="Create" OBJVIEW="Accounting Voucher View">
-                        <DATE>%s</DATE>
-                        <VOUCHERTYPENAME>Payment</VOUCHERTYPENAME>
-                        <VOUCHERNUMBER>%s</VOUCHERNUMBER>
-                        <NARRATION>%s</NARRATION>
-                        
-                        <LEDGERENTRIES.LIST>
-                            <LEDGERNAME>%s</LEDGERNAME>
-                            <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-                            <AMOUNT>-%s</AMOUNT>
-                        </LEDGERENTRIES.LIST>
-                        
-                        <LEDGERENTRIES.LIST>
-                            <LEDGERNAME>%s</LEDGERNAME>
-                            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-                            <AMOUNT>%s</AMOUNT>
-                        </LEDGERENTRIES.LIST>
-                    </VOUCHER>
-                </TALLYMESSAGE>
-            </REQUESTDATA>
-        </IMPORTDATA>
-    </BODY>
-</ENVELOPE>`
+func (a *App) ImportPurchaseVoucher(filePath string) string {
+	// 1. Log: File Path Check
+	fmt.Println("Step 1: File Path mile ->", filePath)
+
+	if filePath == "" {
+		return "Please select a file first!"
+	}
+
+	f, err := excelize.OpenFile(filePath)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return "Error: Could not open Excel file"
+	}
+	defer f.Close()
+
+	// 2. Log: Sheet Names Check
+	sheetList := f.GetSheetList()
+	fmt.Println("Step 2: Available Sheets ->", sheetList)
+
+	// Note: Image me sheet ka naam "April-25" dikh raha hai.
+	// Agar fix naam hai to "April-25" use karein, ya first sheet utha lein
+	sheetName := "April-25"
+
+	// Agar sheet naam dynamic rakhna ho (jo pehli sheet ho wahi utha lo):
+	if len(sheetList) > 0 {
+		sheetName = sheetList[0]
+	}
+
+	rows, err := f.GetRows(sheetName)
+	if err != nil {
+		fmt.Printf("Error: '%s' sheet nahi mili. Available: %v\n", sheetName, sheetList)
+		return "Error: Sheet name not found"
+	}
+
+	// 3. Log: Total Rows
+	fmt.Printf("Step 3: Total Rows Found -> %d\n", len(rows))
+
+	success := 0
+	skipped := 0
+	errors := 0
+
+	// Loop Starts
+	for i, row := range rows {
+		// Headers Skip (Row 1-2 headers nahi hain, data Row 63 se hai, lekin
+		// "D.V" filter headers ko apne aap hata dega, so bas safe indexing chahiye)
+		if i < 2 {
+			continue
+		}
+
+		// 4. Log: Row Length Check (UPDATED for Column V)
+		// Column V ka index 21 hai, isliye length kam se kam 22 honi chahiye
+		if len(row) < 22 {
+			// Sirf tab log print karo agar ye row "D.V" wali ho sakti thi
+			if len(row) > 0 && row[0] == "D.V" {
+				fmt.Printf("⚠️ Row %d SKIPPED due to length < 22 (Length: %d)\n", i+1, len(row))
+			}
+			continue
+		}
+
+		// 5. Log: Company Filter
+		companyCode := row[0]
+		if companyCode != "D.V" {
+			// Har row ka log print mat karo warna console bhar jayega, sirf error debugging ke liye rakho
+			skipped++
+			continue
+		}
+
+		// --- Data Parsing ---
+		fmt.Printf("Processing Row %d for D.V...\n", i+1)
+
+		fmt.Printf("Excel date: %s", row[1])
+
+		// Date Parsing (DD-MM-YYYY -> YYYYMMDD)
+		excelFormattedDate, err := helper.ParseDateSmart(row[1])
+		if err != nil {
+			fmt.Printf("❌ Row %d Date Error: '%s' samajh nahi aayi -> %v\n", i+1, row[1], err)
+			errors++
+			continue
+		}
+
+		fmt.Printf("excelFormattedDate: %s", excelFormattedDate)
+
+		// Safe Data Extraction (Indices Updated based on Image)
+		entry := model.PurchaseEntry{
+			PartyName: row[2],                    // Col C (Party Name)
+			InvoiceNo: row[4],                    // Col E (INVOICE)
+			ItemName:  row[5],                    // Col F (Brand)
+			Qty:       helper.ParseFloat(row[7]), // Col H (QTY)
+			Rate:      helper.ParseFloat(row[8]), // Col I (RATE)
+
+			// Tax Columns Updated (M, N, O)
+			IGSTAmount: helper.ParseFloat(row[12]), // Col M (Index 12)
+			CGSTAmount: helper.ParseFloat(row[13]), // Col N (Index 13)
+			SGSTAmount: helper.ParseFloat(row[14]), // Col O (Index 14)
+
+			// Total Amount Updated (Column V)
+			TotalBill: helper.ParseFloat(row[21]), // Col V (Index 21)
+
+			Date: excelFormattedDate,
+		}
+
+		entry.Amount = entry.Qty * entry.Rate
+		entry.GUID = helper.GenerateGUID(entry.PartyName, entry.InvoiceNo, entry.Date)
+
+		// --- XML Logic ---
+		var taxXML string
+		if entry.IGSTAmount > 0 {
+			taxXML = fmt.Sprintf(constant.PurchaseIGSTTemplate, entry.IGSTAmount)
+		} else {
+			taxXML = fmt.Sprintf(constant.PurchaseCGSTSGSTTemplate, entry.CGSTAmount, entry.SGSTAmount)
+		}
+
+		finalXML := fmt.Sprintf(constant.PurchaseXMLTemplate,
+			entry.Date,                        // DATE
+			entry.Date,                        // REFERENCEDATE
+			entry.GUID,                        // GUID
+			helper.EscapeXML(entry.InvoiceNo), // VOUCHERNUMBER
+			helper.EscapeXML(entry.InvoiceNo), // REFERENCE
+			helper.EscapeXML(entry.PartyName), // PARTYLEDGERNAME
+
+			// --- Inventory Block ---
+			helper.EscapeXML(entry.ItemName), // STOCKITEMNAME
+			entry.Rate,                       // RATE
+			entry.Qty,                        // ACTUALQTY
+			entry.Qty,                        // BILLEDQTY
+			entry.Amount,                     // AMOUNT
+
+			// --- Batch Allocation Block (REPEAT VALUES) ---
+			entry.Amount, // Batch AMOUNT
+			entry.Qty,    // Batch ACTUALQTY
+			entry.Qty,    // Batch BILLEDQTY
+
+			// --- Accounting Allocation Block (REPEAT VALUES) ---
+			entry.Amount, // Accounting AMOUNT
+
+			// --- Party Ledger ---
+			helper.EscapeXML(entry.PartyName), // LEDGERNAME
+			entry.TotalBill,                   // AMOUNT (Total Positive)
+
+			// --- Tax XML ---
+			taxXML)
+
+		fmt.Println("SENDING XML:", finalXML)
+
+		// 6. Log: Sending to Tally
+		tallyURL := "http://localhost:9000"
+		resp, err := helper.SendToTally(tallyURL, finalXML)
+
+		if err != nil {
+			fmt.Printf("❌ Row %d Network Error: %v\n", i+1, err)
+			errors++
+		} else if strings.Contains(resp, "<CREATED>1</CREATED>") {
+			fmt.Printf("✅ Row %d Success!\n", i+1)
+			success++
+		} else {
+			// Duplicate GUID error ya koi aur logic error check karne ke liye:
+			fmt.Printf("❌ Row %d Tally Rejected: %s\n", i+1, resp)
+			errors++
+		}
+	}
+
+	return fmt.Sprintf("Import Complete! Success: %d, Skipped: %d, Failed: %d", success, skipped, errors)
+}
 
 // 1. File Browse Function (Frontend se call hoga)
 func (a *App) SelectExcelFile() string {
@@ -100,93 +268,6 @@ func (a *App) SelectExcelFile() string {
 		return ""
 	}
 	return selection // Selected file ka path wapas bhejega
-}
-
-func (a *App) UploadToTally(filePath string) string {
-	if filePath == "" {
-		return "Please select a file first!"
-	}
-
-	// Step A: Excel File Open karo
-	f, err := excelize.OpenFile(filePath)
-	if err != nil {
-		return "Error: Could not open file. " + err.Error()
-	}
-	defer f.Close()
-
-	// Step B: Rows Read karo (Sheet1 se)
-	rows, err := f.GetRows("Sheet1")
-	if err != nil {
-		return "Error: Could not read rows. " + err.Error()
-	}
-
-	successCount := 0
-	failCount := 0
-	tallyURL := "http://localhost:9000" // Tally Server Address
-
-	errorList := []string{}
-
-	// Step C: Loop chalao (Row by Row)
-	for i, row := range rows {
-		if i == 0 {
-			continue // Header row skip karo
-		}
-
-		// Check karo ki row khali to nahi hai (kam se kam 5 column hone chahiye)
-		if len(row) < 5 {
-			continue
-		}
-
-		// Excel se Data nikalo (Columns: Date, VchNo, DebitLedger, CreditLedger, Amount, Narration)
-		dateRaw := row[0]
-		vchNo := row[1]
-		drLedger := row[2]
-		crLedger := row[3]
-		amount := row[4]
-		narration := ""
-		if len(row) > 5 {
-			narration = row[5]
-		}
-
-		// Date format fix karo (2026-01-29 -> 20260129)
-		tallyDate := strings.ReplaceAll(dateRaw, "-", "")
-
-		// XML Data taiyar karo
-		xmlPayload := fmt.Sprintf(voucherXMLTemplate,
-			tallyDate, vchNo, narration, drLedger, amount, crLedger, amount)
-
-		// Tally ko bhejo
-		err := sendToTally(tallyURL, xmlPayload)
-		if err != nil {
-			failCount++
-			fmt.Println("Error on Row", i+1, err)
-		} else {
-			successCount++
-		}
-	}
-
-	a.SaveLogToDailyFile(filePath, len(rows)-1, successCount, failCount, errorList)
-
-	return fmt.Sprintf("Completed! Success: %d, Failed: %d", successCount, failCount)
-	// return fmt.Sprintf("Completed! Rows: %d", len(rows))
-
-}
-
-// Helper Function: Jo XML ko Tally tak lekar jayega
-func sendToTally(url, xmlData string) error {
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(xmlData)))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "text/xml")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return nil
 }
 
 func (a *App) SaveLogToDailyFile(fileName string, total, success, failed int, errorList []string) {
@@ -209,7 +290,7 @@ func (a *App) SaveLogToDailyFile(fileName string, total, success, failed int, er
 		status = "Failed"
 	}
 
-	newEntry := LogEntry{
+	newEntry := model.LogEntry{
 		Timestamp:  time.Now().Format(time.TimeOnly),
 		FileName:   fileName,
 		Status:     status,
@@ -220,7 +301,7 @@ func (a *App) SaveLogToDailyFile(fileName string, total, success, failed int, er
 	}
 
 	// 4. Purana data read karo (Agar file exist karti hai)
-	var logs []LogEntry
+	var logs []model.LogEntry
 	fileData, err := os.ReadFile(filePath)
 	if err == nil {
 		// File hai, to data parse karo
@@ -232,7 +313,7 @@ func (a *App) SaveLogToDailyFile(fileName string, total, success, failed int, er
 	// logs = append(logs, newEntry)
 
 	// logs ko prepend karne ke liye
-	logs = append([]LogEntry{newEntry}, logs...)
+	logs = append([]model.LogEntry{newEntry}, logs...)
 
 	// 6. File wapas save karo (Indent ke sath taaki padhne me aasaan ho)
 	updatedData, _ := json.MarshalIndent(logs, "", "  ")

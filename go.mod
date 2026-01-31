@@ -4,7 +4,10 @@ go 1.24.0
 
 toolchain go1.24.1
 
-require github.com/wailsapp/wails/v2 v2.11.0
+require (
+	github.com/denisbrodbeck/machineid v1.0.1
+	github.com/wailsapp/wails/v2 v2.11.0
+)
 
 require (
 	github.com/richardlehane/mscfb v1.0.4 // indirect
