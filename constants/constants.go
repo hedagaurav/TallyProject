@@ -14,7 +14,7 @@ const (
 
 	// Purchase Tax Templates (Input Tax, Debit, Negative Amount)
 	// %f jahan amount aayega
-	PurchaseIGSTTemplate = `
+	PurchaseVoucherIGSTTemplate = `
     <LEDGERENTRIES.LIST>
         <LEDGERNAME>Input IGST</LEDGERNAME>
         <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
@@ -23,7 +23,7 @@ const (
 
 	// Local Tax (CGST + SGST combined)
 	// Isme 2 baar %f aayega (ek CGST ke liye, ek SGST ke liye)
-	PurchaseCGSTSGSTTemplate = `
+	PurchaseVoucherCGSTSGSTTemplate = `
     <LEDGERENTRIES.LIST>
         <LEDGERNAME>Input CGST</LEDGERNAME>
         <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
@@ -35,7 +35,7 @@ const (
         <AMOUNT>-%f</AMOUNT>
     </LEDGERENTRIES.LIST>`
 
-	PurchaseXMLTemplate = `
+	PurchaseVoucherXMLTemplate = `
 	<ENVELOPE>
     <HEADER>
         <TALLYREQUEST>Import Data</TALLYREQUEST>
@@ -44,6 +44,9 @@ const (
         <IMPORTDATA>
             <REQUESTDESC>
                 <REPORTNAME>Vouchers</REPORTNAME>
+                <STATICVARIABLES>
+                    <SVCURRENTCOMPANY>%s</SVCURRENTCOMPANY> 
+                </STATICVARIABLES>
             </REQUESTDESC>
             <REQUESTDATA>
                 <TALLYMESSAGE xmlns:UDF="TallyUDF">
@@ -90,4 +93,6 @@ const (
         </IMPORTDATA>
     </BODY>
 	</ENVELOPE>`
+
+	SalesVoucherXMLTemplate = ``
 )
