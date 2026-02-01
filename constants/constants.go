@@ -94,5 +94,35 @@ const (
     </BODY>
 	</ENVELOPE>`
 
-	SalesVoucherXMLTemplate = ``
+	// Part 1: Header + Inventory + Sales Ledger
+	// Note: Isme humne Tax aur Party ka hissa chod diya hai.
+	SALES_VOUCHER_BODY = `
+<TALLYMESSAGE xmlns:UDF="TallyUDF">
+    <VOUCHER VCHTYPE="Sales" ACTION="Create" OBJVIEW="Invoice Voucher View">
+        <DATE>%s</DATE>                <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+        <VOUCHERNUMBER>%s</VOUCHERNUMBER>      <PARTYLEDGERNAME>%s</PARTYLEDGERNAME>  <NARRATION>%s</NARRATION>              <FBID>%s</FBID>                        <ALLINVENTORYENTRIES.LIST>
+            <STOCKITEMNAME>%s</STOCKITEMNAME>  <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            
+            <BATCHALLOCATIONS.LIST>
+                <GODOWNNAME>%s</GODOWNNAME>    <BATCHNAME>Primary Batch</BATCHNAME>
+                <AMOUNT>%.2f</AMOUNT>          <ACTUALQTY> %.2f %s</ACTUALQTY> <BILLEDQTY> %.2f %s</BILLEDQTY> </BATCHALLOCATIONS.LIST>
+
+            <ACCOUNTINGALLOCATIONS.LIST>
+                <LEDGERNAME>%s</LEDGERNAME>    <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+                <AMOUNT>%.2f</AMOUNT>          </ACCOUNTINGALLOCATIONS.LIST>
+        </ALLINVENTORYENTRIES.LIST>`
+
+	// Part 2: Tax Ledger (Reusable for CGST & SGST)
+	SALES_TAX_LEDGER = `
+        <LEDGERENTRIES.LIST>
+            <LEDGERNAME>%s</LEDGERNAME>        <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <AMOUNT>%.2f</AMOUNT>              </LEDGERENTRIES.LIST>`
+
+	// Part 3: Party Ledger (Debit Entry) & Footer
+	SALES_PARTY_LEDGER = `
+        <LEDGERENTRIES.LIST>
+            <LEDGERNAME>%s</LEDGERNAME>        <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+            <AMOUNT>%.2f</AMOUNT>              </LEDGERENTRIES.LIST>
+    </VOUCHER>
+</TALLYMESSAGE>`
 )
