@@ -11,6 +11,8 @@ export function Greet(arg1:string):Promise<string>;
 
 export function ImportPurchaseVoucher(arg1:string):Promise<string>;
 
+export function ImportSalesVoucher(arg1:string):Promise<string>;
+
 export function SaveLogToDailyFile(arg1:string,arg2:number,arg3:number,arg4:number,arg5:Array<string>):Promise<void>;
 
 export function SelectExcelFile():Promise<string>;

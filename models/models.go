@@ -46,34 +46,44 @@ type RawSalesRow struct {
 }
 
 // 2. Tally XML generate karne ke liye Final Struct
-type SalesVoucher struct {
+type SalesVoucherDTO struct {
+	// Meta Data (Logic ke liye)
 	VoucherType   string
-	VoucherDate   string // YYYYMMDD format
+	TargetCompany string // D.V vs D.S logic ke liye
+
+	// Header Details
+	VoucherDate   string // YYYYMMDD
 	VoucherNumber string
 	Narration     string
 
 	// Party Details (Debit / Positive)
-	PartyLedgerName string
-	PartyAmount     float64
+	// NOTE: Function me tumne 'entry.PartyName' use kiya hai
+	PartyName   string
+	PartyAmount float64
 
 	// Inventory Details (Credit / Negative)
-	ItemName   string
-	GodownName string
-	BilledQty  float64
-	Rate       float64
-	ItemAmount float64 // Negative Value
+	ItemName  string
+	Unit      string // Function me 'entry.Unit' use hua hai
+	BilledQty float64
+	ActualQty float64 // Best practice ke liye add kiya hai
+
+	// NOTE: Function me tumne 'entry.ItemRate' use kiya hai
+	ItemRate   float64
+	ItemAmount float64
 
 	// Accounting Allocations (Credit / Negative)
-	SalesLedgerName string
-	SalesAmount     float64 // Negative Value
+	// NOTE: Function me tumne 'entry.SalesLedger' use kiya hai
+	SalesLedger string
+	SalesAmount float64
 
 	// Tax Details (Credit / Negative)
 	OutputCGSTLedger string
-	OutputCGSTAmount float64 // Negative Value
+	OutputCGSTAmount float64
 
 	OutputSGSTLedger string
-	OutputSGSTAmount float64 // Negative Value
+	OutputSGSTAmount float64
 
-	// Meta Data for internal logic
-	TargetCompany string
+	// Future Proofing (Optional but recommended)
+	OutputIGSTLedger string
+	OutputIGSTAmount float64
 }

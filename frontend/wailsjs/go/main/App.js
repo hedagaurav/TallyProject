@@ -22,6 +22,10 @@ export function ImportPurchaseVoucher(arg1) {
   return window['go']['main']['App']['ImportPurchaseVoucher'](arg1);
 }
 
+export function ImportSalesVoucher(arg1) {
+  return window['go']['main']['App']['ImportSalesVoucher'](arg1);
+}
+
 export function SaveLogToDailyFile(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['SaveLogToDailyFile'](arg1, arg2, arg3, arg4, arg5);
 }

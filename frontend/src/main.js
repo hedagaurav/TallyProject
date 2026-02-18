@@ -3,7 +3,7 @@ import './app.css';
 
 import logo from './assets/images/logo-universal.png';
 import { Greet } from '../wailsjs/go/main/App';
-import {SelectExcelFile, ImportPurchaseVoucher} from '../wailsjs/go/main/App'
+import {SelectExcelFile, ImportPurchaseVoucher, ImportSalesVoucher} from '../wailsjs/go/main/App'
 
 
 document.querySelector('#app').innerHTML = `
@@ -88,7 +88,7 @@ window.startImport = function () {
     
     try {
         // Go function call: UploadToTally
-        ImportPurchaseVoucher(selectedPath).then((response) => {
+        ImportSalesVoucher(selectedPath).then((response) => {
             // Response jo Go se aayega (Success/Fail count)
             resultElement.innerText = response;
             resultElement.style.color = "blue";
