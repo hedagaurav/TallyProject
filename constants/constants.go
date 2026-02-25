@@ -3,7 +3,7 @@ package constants
 // SECURITY CONSTANT (Isse koi guess nahi kar payega)
 // Isse apne hisaab se change kar lena
 const AppSecret = "Gaurav_Tally_Secret_2026_Key"
-const TsallyURL = "http://localhost:9000"
+const TallyURL = "http://localhost:9000"
 
 const (
 	// Tally ko ye format pasand hai
